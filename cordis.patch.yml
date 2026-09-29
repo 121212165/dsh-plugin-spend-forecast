@@ -1,0 +1,9 @@
+# Mounts spend-forecast into a dsh profile. Reads cost-ledger sidecars.
+- insert:
+    - id: spend-forecast
+      name: dsh-plugin-spend-forecast
+      config:
+        enabled: true
+        # dataDir: ~/.dsh/cost-ledger    # cost-ledger sidecar dir (shared default)
+        budgetMajor: 20     # monthly budget in whole currency units; null/0 = no budget
+        windowDays: 7       # daily-rate window
