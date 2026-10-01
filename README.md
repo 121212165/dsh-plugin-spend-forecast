@@ -1,5 +1,7 @@
 # dsh-plugin-spend-forecast
 
+**EN** · Projects spend from cost-ledger sidecars: daily burn over **active days only**, month-end extrapolation, and the date a budget runs dry (`/forecast`). · 5 `node --test` green · ran against a real ledger on this machine and matched hand calculation · month-boundary extrapolation not exercised.
+
 DeepSeek Harness (dsh) 插件：**花费预测**。读 [cost-ledger](https://github.com/121212165/dsh-plugin-cost-ledger) 的台账边车，算出日均花费、本月月末预测、以及按当前速率多少天烧穿预算。
 
 适合回答："照这个速度我这个月要花多少？预算什么时候用完？"——cost-ledger 回答"已经花了多少"，本插件回答"接下来会花多少"。
@@ -35,8 +37,21 @@ DeepSeek Harness (dsh) 插件：**花费预测**。读 [cost-ledger](https://git
 
 ## 安装
 
-`npm i dsh-plugin-spend-forecast`；或克隆后 `npm install`（`prepare` 构建 `lib/`）再链进 profile 的 node_modules。挂载片段见 `cordis.patch.yml`。必须先装并配置 cost-ledger。
+三步，实测于 `@deepseek-ai/dsh@0.1.7-alpha.1`（需 `pnpm` 在 PATH 上）：
 
+```sh
+# ① 装进 profile：dsh plugin 把参数原样转发给 pnpm，git 包会自动跑 prepare 构建 lib/
+dsh plugin --profile web add github:121212165/dsh-plugin-spend-forecast
+```
+
+② 把本仓库根目录 `cordis.patch.yml` 的内容**并进** `$DSH_HOME/profiles/web/cordis.patch.yml`。
+该文件默认是 `[]`，所以要么整份替换，要么把 insert 条目并进同一个数组；**不要直接追加**——
+追加会形成两个 YAML 文档，启动即报
+`failed to parse overlay ... end of the stream or a document separator is expected`（本机实测踩过）。
+
+③ 重启 dsh。配置层与 client 半都要重启才生效（客户端按 boot 时算出的内容 rev 下发，硬刷新浏览器没用）。
+
+自检挂载：`dsh --profile web --dump-config | grep dsh-plugin-spend-forecast`，应看到该条目。
 ## 验证状态
 
 - 纯函数（日均只算活跃天、月末外推、预算钳 0、剩余天数、空台账）5 个 `node --test` 全绿。
