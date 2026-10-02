@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "花费预测",
+    "description": "按日均消耗预测余量还能烧几天，/forecast 提前规划"
+  }
+}
