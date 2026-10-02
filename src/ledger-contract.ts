@@ -7,4 +7,7 @@ export interface LedgerRecordLike {
   costMicros?: number;
   currency?: string;
   buckets?: Record<string, number | undefined>;
+  /** cost-ledger stamps the model pair that produced the cost */
+  modelId?: string;
+  provider?: string;
 }

@@ -20,33 +20,47 @@ export interface Config {
   dataDir?: string;
   budgetMajor: number;
   windowDays: number;
+  longWindowDays: number;
 }
 
 export const Config = Schema.object({
   enabled: Schema.boolean().default(true),
-  dataDir: Schema.string(),
+  dataDir: Schema.string().default(''),
   budgetMajor: Schema.number().default(20),
   windowDays: Schema.natural().default(7),
+  longWindowDays: Schema.natural().default(30),
 });
 
 export function expandHome(path: string): string {
   return path.startsWith('~') ? join(homedir(), path.slice(1)) : path;
 }
 
-export function readLedger(dataDir: string): LedgerRecordLike[] {
+export function readLedger(dataDir: string): { records: LedgerRecordLike[]; skipped: number } {
   const records: LedgerRecordLike[] = [];
-  if (!existsSync(dataDir)) return records;
+  let skipped = 0;
+  if (!existsSync(dataDir)) return { records, skipped };
   for (const name of readdirSync(dataDir).filter((file) => /^ledger-\d{4}-(0[1-9]|1[0-2])\.jsonl$/.test(file)).sort()) {
     for (const line of readFileSync(join(dataDir, name), 'utf8').split(/\r?\n/)) {
       if (!line.trim()) continue;
       try {
-        records.push(JSON.parse(line) as LedgerRecordLike);
+        const value = JSON.parse(line) as LedgerRecordLike;
+        // the forecast touches .at (slice/Date.parse) and .costMicros — a line
+        // missing either would throw mid-aggregation, so it's skipped instead
+        if (typeof value?.at !== 'string' || Number.isNaN(Date.parse(value.at))) {
+          skipped++;
+          continue;
+        }
+        if (value.costMicros !== undefined && (typeof value.costMicros !== 'number' || !Number.isFinite(value.costMicros) || value.costMicros < 0)) {
+          skipped++;
+          continue;
+        }
+        records.push(value);
       } catch {
-        // torn line — the ledger owns the file; we just skip
+        skipped++;
       }
     }
   }
-  return records;
+  return { records, skipped };
 }
 
 /** dominant currency of the recent records, for display only */
@@ -62,15 +76,29 @@ export function apply(ctx: Context, config: Config): void {
   const log = ctx.logger('spend-forecast');
   if (!config.enabled) return void log.info('disabled by config');
   const dataDir = config.dataDir ? expandHome(config.dataDir) : join(homedir(), '.dsh', 'cost-ledger');
+  // Startup probe contract (family convention): a bad window must fail startup,
+  // never limp along rendering a forecast built on a nonsensical window.
+  if (!Number.isInteger(config.windowDays) || config.windowDays < 1) throw new TypeError('spend-forecast: windowDays must be a positive integer');
+  if (!Number.isInteger(config.longWindowDays) || config.longWindowDays < 1) throw new TypeError('spend-forecast: longWindowDays must be a positive integer');
+  if (!Number.isFinite(config.budgetMajor) || config.budgetMajor < 0) throw new TypeError('spend-forecast: budgetMajor must be a non-negative finite number');
 
   ctx.commands.register({
     name: 'forecast',
-    description: '花费预测：日均速率、月末预测、预算耗尽天数（读 cost-ledger 台账）',
+    description: '花费预测：7/30 天双窗日均与趋势、月末预测、烧完预算的日期、按模型分解（读 cost-ledger 台账）',
     handler: () => {
-      const records = readLedger(dataDir);
+      const { records, skipped } = readLedger(dataDir);
       if (!records.length) return { kind: 'error', text: `台账为空（${dataDir}）。先装 dsh-plugin-cost-ledger 积累数据。` };
-      const result = forecast(records, new Date(), config.windowDays, config.budgetMajor);
-      return { kind: 'success', text: renderForecast(result, currencyOf(records)) };
+      // Currencies are never summed together — forecast on the dominant
+      // currency's records only and say what was left out.
+      const dominant = currencyOf(records);
+      const scoped = records.filter((record) => !record.currency || record.currency === dominant);
+      const foreign = records.length - scoped.length;
+      const result = forecast(scoped, new Date(), config.windowDays, config.budgetMajor, config.longWindowDays);
+      const notes: string[] = [];
+      if (foreign > 0) notes.push(`另有 ${foreign} 条非 ${dominant} 记录未计入预测（币种不混算）`);
+      if (skipped > 0) notes.push(`台账里有 ${skipped} 行损坏/不完整被跳过`);
+      const text = renderForecast(result, dominant) + (notes.length ? `\n⚠ ${notes.join('；')}` : '');
+      return { kind: 'success', text };
     },
   });
 
