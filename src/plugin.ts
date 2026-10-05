@@ -5,11 +5,11 @@
 import type { Context } from '@deepseek-ai/cordis';
 import Schema from '@deepseek-ai/schemastery';
 import type {} from '@deepseek-ai/dsh-commands';
-import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync, mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
-import { forecast, renderForecast } from './forecast.ts';
+import { composeForecastSummary, forecast, renderForecast } from './forecast.ts';
 import type { LedgerRecordLike } from './ledger-contract.ts';
 
 export const name = 'spend-forecast';
@@ -21,6 +21,8 @@ export interface Config {
   budgetMajor: number;
   windowDays: number;
   longWindowDays: number;
+  /** where the published forecast contract lives; ide-hub's /today mirrors it */
+  forecastPath?: string;
 }
 
 export const Config = Schema.object({
@@ -29,6 +31,7 @@ export const Config = Schema.object({
   budgetMajor: Schema.number().default(20),
   windowDays: Schema.natural().default(7),
   longWindowDays: Schema.natural().default(30),
+  forecastPath: Schema.string().default('~/.dsh/spend-forecast/forecast.json'),
 });
 
 export function expandHome(path: string): string {
@@ -82,6 +85,20 @@ export function apply(ctx: Context, config: Config): void {
   if (!Number.isInteger(config.longWindowDays) || config.longWindowDays < 1) throw new TypeError('spend-forecast: longWindowDays must be a positive integer');
   if (!Number.isFinite(config.budgetMajor) || config.budgetMajor < 0) throw new TypeError('spend-forecast: budgetMajor must be a non-negative finite number');
 
+  const forecastPath = config.forecastPath ? expandHome(config.forecastPath) : join(homedir(), '.dsh', 'spend-forecast', 'forecast.json');
+
+  /** temp+rename atomic write — other plugins read this mid-flight. */
+  const publish = (summary: ReturnType<typeof composeForecastSummary>): void => {
+    try {
+      mkdirSync(dirname(forecastPath), { recursive: true });
+      const tmp = `${forecastPath}.${process.pid}.tmp`;
+      writeFileSync(tmp, JSON.stringify(summary, null, 2) + '\n', 'utf8');
+      renameSync(tmp, forecastPath);
+    } catch (error) {
+      log.warn(`forecast publish failed: ${String(error)}`);
+    }
+  };
+
   ctx.commands.register({
     name: 'forecast',
     description: '花费预测：7/30 天双窗日均与趋势、月末预测、烧完预算的日期、按模型分解（读 cost-ledger 台账）',
@@ -98,6 +115,7 @@ export function apply(ctx: Context, config: Config): void {
       if (foreign > 0) notes.push(`另有 ${foreign} 条非 ${dominant} 记录未计入预测（币种不混算）`);
       if (skipped > 0) notes.push(`台账里有 ${skipped} 行损坏/不完整被跳过`);
       const text = renderForecast(result, dominant) + (notes.length ? `\n⚠ ${notes.join('；')}` : '');
+      publish(composeForecastSummary(result, dominant));
       return { kind: 'success', text };
     },
   });

@@ -142,6 +142,39 @@ export function forecast(records: LedgerRecordLike[], now: Date, windowDays: num
   };
 }
 
+/** The published contract for /today: ide-hub mirrors this file (separate
+ * packages cannot import each other). Append-only — fields may be added later,
+ * never renamed or redefined. */
+export interface ForecastSummary {
+  v: 1;
+  updatedAt: string;
+  currency: string;
+  dailyRateMicros: Micros;
+  trend: Trend;
+  month: string;
+  spentThisMonthMicros: Micros;
+  projectedMonthEndMajor: number;
+  budgetMajor: number | null;
+  daysUntilBudget: number | null;
+  budgetExhaustionDate: string | null;
+}
+
+export function composeForecastSummary(result: Forecast, currency: string, now = new Date()): ForecastSummary {
+  return {
+    v: 1,
+    updatedAt: now.toISOString(),
+    currency,
+    dailyRateMicros: result.dailyRateMicros,
+    trend: result.trend,
+    month: result.month,
+    spentThisMonthMicros: result.spentThisMonthMicros,
+    projectedMonthEndMajor: result.projectedMonthEndMajor,
+    budgetMajor: result.budgetMajor,
+    daysUntilBudget: result.daysUntilBudget,
+    budgetExhaustionDate: result.budgetExhaustionDate,
+  };
+}
+
 const SYMBOL: Record<string, string> = { CNY: '¥', USD: '$', EUR: '€' };
 
 function money(micros: Micros, currency: string): string {

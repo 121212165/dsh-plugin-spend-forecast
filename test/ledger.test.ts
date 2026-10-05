@@ -6,7 +6,7 @@
 
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -24,7 +24,8 @@ interface CapturedCommand {
   handler: () => { kind: string; text: string };
 }
 
-/** Mount the real apply() over a throwaway ledger directory. */
+/** Mount the real apply() over a throwaway ledger directory. The forecast
+ * contract defaults inside the temp dir too — tests must never write ~/.dsh. */
 function mount(config: Record<string, unknown> = {}): { commands: CapturedCommand[]; dataDir: string } {
   const dataDir = tempDir();
   const commands: CapturedCommand[] = [];
@@ -32,7 +33,7 @@ function mount(config: Record<string, unknown> = {}): { commands: CapturedComman
     logger: () => ({ info() {}, warn() {}, debug() {} }),
     commands: { register: (definition: CapturedCommand) => void commands.push(definition) },
   };
-  apply(ctx as never, { enabled: true, dataDir, budgetMajor: 20, windowDays: 7, longWindowDays: 30, ...config } as never);
+  apply(ctx as never, { enabled: true, dataDir, budgetMajor: 20, windowDays: 7, longWindowDays: 30, forecastPath: join(dataDir, 'forecast.json'), ...config } as never);
   return { commands, dataDir };
 }
 
@@ -118,4 +119,35 @@ test('/forecast reads the ledger and prints both windows, the trend, and the mod
   assert.ok(text.includes('非 CNY 记录未计入预测'), text);
   assert.ok(!text.includes('us-priced'), 'a foreign-currency model is scoped out of every line, breakdown included');
   assert.ok(text.includes('烧完预算'), text);
+});
+
+test('/forecast publishes the forecast.json contract for /today to mirror', () => {
+  const { commands, dataDir } = mount();
+  const day = 86_400_000;
+  const at = (ago: number): string => new Date(Date.now() - ago * day).toISOString();
+  writeFileSync(
+    join(dataDir, 'ledger-2026-09.jsonl'),
+    [
+      { at: at(0), costMicros: 4_000_000, currency: 'CNY', modelId: 'deepseek-chat' },
+      { at: at(1), costMicros: 2_000_000, currency: 'CNY', modelId: 'step-5' },
+    ]
+      .map((row) => JSON.stringify(row))
+      .join('\n'),
+    'utf8',
+  );
+
+  const result = commands[0]!.handler();
+  assert.equal(result.kind, 'success');
+  const summary = JSON.parse(readFileSync(join(dataDir, 'forecast.json'), 'utf8'));
+  assert.equal(summary.v, 1);
+  assert.equal(summary.currency, 'CNY');
+  assert.equal(summary.dailyRateMicros, 3_000_000);
+  assert.equal(typeof summary.daysUntilBudget, 'number');
+  assert.equal(typeof summary.budgetExhaustionDate, 'string');
+  assert.ok(summary.updatedAt, 'stamped with when it was computed');
+
+  // an empty ledger refuses and must not publish a lie
+  const fresh = mount();
+  fresh.commands[0]!.handler();
+  assert.equal(existsSync(join(fresh.dataDir, 'forecast.json')), false, 'no ledger, no contract file');
 });
