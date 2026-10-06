@@ -1,5 +1,8 @@
 # dsh-plugin-spend-forecast
 
+> 🧩 **dsh 插件家族**（22 件）：总目录 **[dsh-plugin-family](https://github.com/121212165/dsh-plugin-family)** ｜ 明星插件：**[ide-hub](https://github.com/121212165/dsh-plugin-ide-hub)** 跨 IDE 统一管理 · **[task-forge](https://github.com/121212165/dsh-plugin-task-forge)** 跨窗口无损交接 · **[quota](https://github.com/121212165/dsh-plugin-quota)** 实时用量仪表
+
+
 **EN** · Projects spend from cost-ledger sidecars: dual-window daily burn (7d vs 30d) with a trend verdict, month-end extrapolation, the exact date a budget runs dry, and a per-model breakdown (`/forecast`). · 12 `node --test` green (9 pure + 3 wire) · ran against a real ledger on this machine and matched hand calculation · month-boundary extrapolation not exercised.
 
 DeepSeek Harness (dsh) 插件：**花费预测**。读 [cost-ledger](https://github.com/121212165/dsh-plugin-cost-ledger) 的台账边车，算出**双窗日均（7 天 vs 30 天）与趋势**、本月月末预测、烧穿预算的**具体日期**、以及这些钱花在哪个模型上。
