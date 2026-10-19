@@ -59,7 +59,8 @@
     "@deepseek-ai/schemastery": "3.18.2",
     "@deepseek-ai/dsh-tools": "^0.1.2-alpha.4",
     "@types/node": "26.6.2",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "@dsh-family/pricing": "workspace:*"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": ">=4.0.0"
