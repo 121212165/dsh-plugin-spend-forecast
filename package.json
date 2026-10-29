@@ -27,6 +27,11 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "catalog": {
+      "category": "钱与用量",
+      "blurb": "按日均消耗预测余量撑几天、几号烧穿",
+      "entries": "`/forecast`"
     }
   },
   "engines": {
