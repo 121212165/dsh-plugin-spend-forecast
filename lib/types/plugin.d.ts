@@ -16,21 +16,21 @@ export interface Config {
     /** where the published forecast contract lives; ide-hub's /today mirrors it */
     forecastPath?: string;
 }
-export declare const Config: Schema<Schemastery.ObjectS<{
-    enabled: Schema<boolean, boolean>;
-    dataDir: Schema<string, string>;
-    budgetMajor: Schema<number, number>;
-    windowDays: Schema<number, number>;
-    longWindowDays: Schema<number, number>;
-    forecastPath: Schema<string, string>;
-}>, Schemastery.ObjectT<{
-    enabled: Schema<boolean, boolean>;
-    dataDir: Schema<string, string>;
-    budgetMajor: Schema<number, number>;
-    windowDays: Schema<number, number>;
-    longWindowDays: Schema<number, number>;
-    forecastPath: Schema<string, string>;
-}>>;
+export declare const Config: Schema<Schemastery.ObjectS<NoInfer<{
+    enabled: Schema<boolean, boolean, "defined">;
+    dataDir: Schema<string, string, "defined">;
+    budgetMajor: Schema<number, number, "defined">;
+    windowDays: Schema<number, number, "defined">;
+    longWindowDays: Schema<number, number, "defined">;
+    forecastPath: Schema<string, string, "defined">;
+}>>, Schemastery.ObjectT<NoInfer<{
+    enabled: Schema<boolean, boolean, "defined">;
+    dataDir: Schema<string, string, "defined">;
+    budgetMajor: Schema<number, number, "defined">;
+    windowDays: Schema<number, number, "defined">;
+    longWindowDays: Schema<number, number, "defined">;
+    forecastPath: Schema<string, string, "defined">;
+}>>, "plain">;
 export declare function expandHome(path: string): string;
 export declare function readLedger(dataDir: string): {
     records: LedgerRecordLike[];
